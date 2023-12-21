@@ -5,40 +5,31 @@ use std::io::ErrorKind::TimedOut;
 use std::str::from_utf8;
 use std::time::Duration;
 
-fn main() {
-    thread::spawn(move || {
-        match TcpStream::connect("localhost:3333") {
-            Ok(mut stream) => {
-                println!("Successfully connected to server in port 3333");
 
+fn main() {
+    match TcpStream::connect("localhost:3333") {
+        Ok(mut stream) => {
+            stream.set_nonblocking(true).unwrap();
+            println!("Successfully connected to server in port 3333");
+            let mut clone_stream = stream.try_clone().unwrap();
+
+            thread::spawn(move || {
                 loop {
                     let mut message = String::new();
                     io::stdin().read_line(&mut message).expect("Could not read message!");
                     println!("{:?}", &message.as_bytes());
-                    stream.write(&message.as_bytes()).expect("Could not send message to server!");
+                    clone_stream.write(&message.as_bytes()).expect("Could not send message to server!");
                 }
-            },
-            Err(e) => {
-                println!("Failed to connect: {}", e);
-            }
-        }
-    });
+            });
 
-    thread::spawn(move || {
-        match TcpStream::connect("localhost:3333") {
-            Ok(mut stream) => {
-                println!("Successfully connected to server in port 3333");
-
+            thread::spawn(move || {
                 let mut data = [0u8; 1200]; // using 1200 byte buffer
+
                 loop {
                     stream.set_read_timeout(Some(Duration::new(5,0))).expect("Something went wrong");
                     match stream.read_exact(&mut data) {
                         Ok(_) => {
-                            if &data == &data {
-                                println!("Received some data: {:?}", from_utf8(&mut data));
-                            } else {
-                                println!("The Hell");
-                            }
+                            println!("Received some data: {:?}", from_utf8(&mut data));
                         },
                         Err(ref e) if e.kind() == TimedOut => {},
                         Err(e) => {
@@ -46,15 +37,11 @@ fn main() {
                         },
                     }
                 }
-
-            },
-            Err(e) => {
-                println!("Failed to connect: {}", e);
-            }
+            });
+        },
+        Err(e) => {
+            println!("Failed to connect: {}", e);
         }
-    });
-    loop {
-
     }
     println!("Terminated.");
 }
