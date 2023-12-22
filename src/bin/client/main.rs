@@ -1,7 +1,8 @@
 use std::net::{TcpStream};
 use std::io::{Read, Write};
 use std::{io, thread};
-use std::str::from_utf8;
+use std::ops::{Index, Rem};
+use std::str::{from_utf8, from_utf8_unchecked};
 use std::time::Duration;
 
 fn main() {
@@ -30,8 +31,8 @@ fn main() {
     let mut data = [0u8; 1200]; // using a 1200-byte buffer
     loop {
         match stream.read(&mut data) {
-            Ok(size) if size > 0 => {
-                println!("Received some data: {:?}", from_utf8(&data[0..size]));
+            Ok(size) if size > 0 => unsafe {
+                message_handler(&mut data, size);
             },
             Ok(_) => {
                 // Do nothing if receiving no data
@@ -51,5 +52,20 @@ fn main() {
             }
         }
         std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn message_handler(message: &mut [u8], size: usize) {
+    let mut vec_message = message.to_vec();
+
+    if size > 0 {
+        match from_utf8(&vec_message[0..(size-2)]) {
+            Ok(content) => {
+                println!("{:?}", content);
+            },
+            Err(e) => {
+                println!("(Message Handler)Error: {:?}", e);
+            }
+        }
     }
 }

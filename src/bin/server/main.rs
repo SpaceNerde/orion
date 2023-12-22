@@ -10,7 +10,6 @@ fn handle_client(mut stream: TcpStream) {
         Ok(size) if size > 0 => {
             // echo everything!
             stream.write(&data[0..size]).unwrap();
-            println!("Server: {:?}", from_utf8(&data[0..size]));
             true
         },
         Ok(_) => {
