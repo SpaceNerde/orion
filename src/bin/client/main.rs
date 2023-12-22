@@ -1,12 +1,9 @@
 use std::net::{TcpStream};
 use std::io::{Read, Write};
 use std::{io, thread};
-use std::io::ErrorKind::TimedOut;
 use std::str::from_utf8;
-use std::sync::Mutex;
 use std::time::Duration;
 use winapi::um::winsock2::{WSAStartup, WSACleanup, WSAVERNOTSUPPORTED};
-use winapi::um::winuser;
 
 const WSA_VERSION: u16 = 0x0202;
 
@@ -52,7 +49,6 @@ fn main() {
         loop {
             let mut message = String::new();
             io::stdin().read_line(&mut message).expect("Could not read message!");
-            println!("{:?}", &message.as_bytes());
             clone_stream.write(&message.as_bytes()).expect("Could not send message to server!");
         }
     });
@@ -64,7 +60,7 @@ fn main() {
                 println!("Received some data: {:?}", from_utf8(&data[0..size]));
             },
             Ok(_) => {
-                println!("Received no data");
+                // Do nothing if receiving no data
             },
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                 // Do nothing on WouldBlock, just continue the loop
