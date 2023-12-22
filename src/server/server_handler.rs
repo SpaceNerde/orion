@@ -29,8 +29,8 @@ fn handle_client(mut stream: TcpStream) {
     } {}
 }
 
-fn main() {
-    let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
+pub fn start_server(addr: String) {
+    let listener = TcpListener::bind(addr).unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");
     for stream in listener.incoming() {

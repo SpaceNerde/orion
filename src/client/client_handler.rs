@@ -5,8 +5,8 @@ use std::ops::{Index, Rem};
 use std::str::{from_utf8, from_utf8_unchecked};
 use std::time::Duration;
 
-fn main() {
-    let mut stream = match TcpStream::connect("localhost:3333") {
+pub fn start_client(addr: String) {
+    let mut stream = match TcpStream::connect(addr) {
         Ok(stream) => stream,
         Err(e) => {
             println!("Failed to connect: {}", e);
