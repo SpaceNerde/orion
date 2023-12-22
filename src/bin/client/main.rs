@@ -3,30 +3,6 @@ use std::io::{Read, Write};
 use std::{io, thread};
 use std::str::from_utf8;
 use std::time::Duration;
-use winapi::um::winsock2::{WSAStartup, WSACleanup, WSAVERNOTSUPPORTED};
-
-const WSA_VERSION: u16 = 0x0202;
-
-fn make_word(low: u8, high: u8) -> u16 {
-    low as u16 | ((high as u16) << 8)
-}
-
-fn initialize_winsock() {
-    unsafe {
-        let mut wsadata = std::mem::zeroed();
-        if WSAStartup(WSA_VERSION, &mut wsadata) != 0 {
-            panic!("Failed to initialize Winsock: {}", WSAVERNOTSUPPORTED);
-        }
-    }
-}
-
-fn cleanup_winsock() {
-    unsafe {
-        if WSACleanup() != 0 {
-            panic!("Failed to clean up Winsock");
-        }
-    }
-}
 
 fn main() {
     let mut stream = match TcpStream::connect("localhost:3333") {
@@ -36,8 +12,6 @@ fn main() {
             return;
         }
     };
-
-    initialize_winsock();
 
     stream.set_nonblocking(true).expect("Failed to set nonblocking mode");
 
@@ -78,8 +52,4 @@ fn main() {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-
-    // Cleanup Winsock when done
-    cleanup_winsock();
-    println!("Terminated.");
 }
