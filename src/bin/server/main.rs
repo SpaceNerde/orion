@@ -1,5 +1,3 @@
-mod cli_commands;
-
 use std::{io, thread};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
