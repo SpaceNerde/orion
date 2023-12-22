@@ -1,3 +1,3 @@
 fn main() {
-    println!("Orion is starting!")
+    println!("Orion")
 }
