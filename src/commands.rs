@@ -36,7 +36,7 @@ const PORT_RANGE: RangeInclusive<i32> = 1..=65535;
 fn port_in_range(s: &str) -> Result<i32, String> {
     let port: i32 = s
         .parse()
-        .map_err(|e| format!("{s} is not a port"))?;
+        .map_err(|_| format!("{s} is not a port"))?;
     match PORT_RANGE.contains(&port) {
         true => {
             Ok(port as i32)

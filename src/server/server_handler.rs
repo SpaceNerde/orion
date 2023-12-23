@@ -1,7 +1,6 @@
 use std::{io, thread};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
-use std::str::from_utf8;
 
 fn handle_client(mut stream: TcpStream) {
     let mut data = [0u8; 1200]; // using 120 byte buffer
