@@ -16,7 +16,6 @@ fn main() {
         },
         Commands::StartClient(args) => {
             client_handler::start_client(format!("{}:{}", args.ip, args.port));
-        },
-        _ => {}
+        }
     }
 }
