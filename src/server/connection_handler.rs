@@ -5,6 +5,7 @@ use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::str::{from_utf8, Utf8Error};
 use rand::Rng;
+use crate::server;
 
 const HELP_MESSAGE: &str = "\n
     Create chat group:  --create-group\n
@@ -85,7 +86,7 @@ impl Group {
     }
 }
 
-pub fn handle_waiting_connection(mut stream: TcpStream) {
+pub fn handle_waiting_connection(mut stream: TcpStream, group_book: &GroupBook) {
     let mut data = [0u8; 1200]; // using 120 byte buffer
     stream.set_nonblocking(true).unwrap();
     loop {
@@ -99,6 +100,7 @@ pub fn handle_waiting_connection(mut stream: TcpStream) {
                     },
                     "--create-group" => {
                         stream.write("\nyou created a group".as_bytes()).expect("TODO: panic message");
+                        let mut test_group = server::connection_handler::Group::new("".to_string(), &group_book);
                     },
                     "--join-group" => {
                         stream.write("\nyou joined a group".as_bytes()).expect("TODO: panic message");

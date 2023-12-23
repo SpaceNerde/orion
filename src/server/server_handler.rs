@@ -1,6 +1,7 @@
 use std::{io, thread};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
+use crate::server;
 
 use crate::server::connection_handler::handle_waiting_connection;
 
@@ -31,6 +32,9 @@ fn handle_client(mut stream: TcpStream) {
 }
 
 pub fn start_server(addr: String) {
+    // TODO: Add Command to create Group Books
+    let mut test_group_book = server::connection_handler::GroupBook::new();
+
     let listener = TcpListener::bind(addr).unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");

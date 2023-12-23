@@ -10,7 +10,7 @@ use client::client_handler;
 fn main() {
     let mut test_group_book = server::connection_handler::GroupBook::new();
 
-    let mut test_group = server::connection_handler::Group::new("".to_string(), &test_group_book);
+
 
     test_group_book.add_group(&test_group);
 
