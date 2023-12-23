@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::fmt::format;
 use std::io;
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
@@ -16,31 +17,33 @@ const HELP_MESSAGE: &str = "\n
 
 #[derive(Clone)]
 pub struct GroupBook {
-    groups: HashSet<String>
+    groups: Vec<Group>
 }
 
 impl GroupBook {
     pub fn new() -> Self {
         GroupBook {
-            groups: HashSet::new(),
+            groups: Vec::new(),
         }
     }
 
     pub fn add_group(&mut self, group: &Group) {
-        self.groups.insert(group.get_id());
+        self.groups.push(group.clone());
     }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Group {
+    name: String,
     id: String,
     password: String,
     clients: RefCell<HashSet<String>>
 }
 
 impl Group {
-    pub fn new(password: String, group_book: &GroupBook) -> Self {
+    pub fn new(password: String, group_book: &GroupBook, name: String) -> Self {
         Group {
+            name,
             id: Group::generate_random_seed(group_book),
             password,
             clients: RefCell::new(HashSet::new()),
@@ -62,7 +65,7 @@ impl Group {
     fn id_exists(id: String, group_book: &GroupBook) -> bool {
         group_book
             .groups.iter()
-            .any(|g| g == &id)
+            .any(|g| g.id == id)
     }
 
     fn generate_random_seed(group_book: &GroupBook) -> String {
@@ -86,13 +89,14 @@ impl Group {
     }
 }
 
-pub fn handle_waiting_connection(mut stream: TcpStream, group_book: &GroupBook) {
+pub fn handle_waiting_connection(mut stream: TcpStream, group_book: &mut GroupBook) {
     let mut data = [0u8; 1200]; // using 120 byte buffer
     stream.set_nonblocking(true).unwrap();
     loop {
         match stream.read(&mut data) {
             Ok(size) if size > 0 => {
                 let message =  from_utf8(&data[0..size-2]).unwrap();
+                let mut buffer_group = server::connection_handler::Group::new("".to_string(), &group_book, "test".to_string());
 
                 match message {
                     "--help" => {
@@ -100,13 +104,18 @@ pub fn handle_waiting_connection(mut stream: TcpStream, group_book: &GroupBook) 
                     },
                     "--create-group" => {
                         stream.write("\nyou created a group".as_bytes()).expect("TODO: panic message");
-                        let mut test_group = server::connection_handler::Group::new("".to_string(), &group_book);
+                        buffer_group = server::connection_handler::Group::new("".to_string(), &group_book, "test".to_string());
+                        group_book.add_group(&buffer_group);
                     },
                     "--join-group" => {
                         stream.write("\nyou joined a group".as_bytes()).expect("TODO: panic message");
+                        buffer_group.add_client(stream.peer_addr().unwrap().to_string());
                     },
                     "--show-groups" => {
                         stream.write("\nthis are all the groups!".as_bytes()).expect("TODO: panic message");
+                        for s in &group_book.groups {
+                            stream.write(format!("\n{:?}", s.name).as_bytes()).expect("TODO: panic message");
+                        }
                     },
                     "--exit-server" => {
                         stream.shutdown(Shutdown::Both).unwrap();

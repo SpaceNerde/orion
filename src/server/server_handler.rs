@@ -35,16 +35,19 @@ pub fn start_server(addr: String) {
     // TODO: Add Command to create Group Books
     let mut test_group_book = server::connection_handler::GroupBook::new();
 
+
+
     let listener = TcpListener::bind(addr).unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
+                let mut test_group_book_clone = test_group_book.clone();
                 println!("New connection: {}", stream.peer_addr().unwrap());
                 thread::spawn(move|| {
                     // connection succeeded
-                    handle_waiting_connection(stream);
+                    handle_waiting_connection(stream, &mut test_group_book_clone);
                 });
             }
             Err(e) => {
