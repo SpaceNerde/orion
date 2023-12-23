@@ -1,6 +1,17 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::io;
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpStream};
+use std::str::{from_utf8, Utf8Error};
 use rand::Rng;
+
+const HELP_MESSAGE: &str = "\n
+    Create chat group:  --create-group\n
+    Join chat group:    --join-group\n
+    Show public groups: --show-groups\n
+    Exit the server:    --exit-server\n
+";
 
 #[derive(Clone)]
 pub struct GroupBook {
@@ -74,5 +85,49 @@ impl Group {
     }
 }
 
+pub fn handle_waiting_connection(mut stream: TcpStream) {
+    let mut data = [0u8; 1200]; // using 120 byte buffer
+    stream.set_nonblocking(true).unwrap();
+    loop {
+        match stream.read(&mut data) {
+            Ok(size) if size > 0 => {
+                let message =  from_utf8(&data[0..size-2]).unwrap();
 
+                match message {
+                    "--help" => {
+                        stream.write(HELP_MESSAGE.as_bytes()).expect("TODO: panic message");
+                    },
+                    "--create-group" => {
+                        stream.write("\nyou created a group".as_bytes()).expect("TODO: panic message");
+                    },
+                    "--join-group" => {
+                        stream.write("\nyou joined a group".as_bytes()).expect("TODO: panic message");
+                    },
+                    "--show-groups" => {
+                        stream.write("\nthis are all the groups!".as_bytes()).expect("TODO: panic message");
+                    },
+                    "--exit-server" => {
+                        stream.shutdown(Shutdown::Both).unwrap();
+                    },
+                    _ => {}
+                }
+            },
+            Ok(_) => {
 
+            },
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                // Do nothing on WouldBlock, just continue the loop
+            },
+            Err(e) => {
+                println!("An error occurred, terminating connection with {}", stream.peer_addr().unwrap());
+                println!("Error: {:?}", e);
+                stream.shutdown(Shutdown::Both).unwrap();
+                break;
+            }
+        }
+    }
+}
+
+pub fn handle_group_connection() {
+
+}

@@ -2,6 +2,8 @@ use std::{io, thread};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
 
+use crate::server::connection_handler::handle_waiting_connection;
+
 fn handle_client(mut stream: TcpStream) {
     let mut data = [0u8; 1200]; // using 120 byte buffer
     stream.set_nonblocking(true).unwrap();
@@ -38,7 +40,7 @@ pub fn start_server(addr: String) {
                 println!("New connection: {}", stream.peer_addr().unwrap());
                 thread::spawn(move|| {
                     // connection succeeded
-                    handle_client(stream)
+                    handle_waiting_connection(stream);
                 });
             }
             Err(e) => {
