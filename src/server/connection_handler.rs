@@ -1,13 +1,17 @@
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::format;
 use std::io;
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::rc::Rc;
 use std::str::{from_utf8, Utf8Error};
+use std::sync::{Arc, Mutex, MutexGuard};
 use rand::Rng;
 use crate::server;
+
+type ClientMap = Arc<Mutex<HashMap<usize, Arc<Mutex<TcpStream>>>>>;
+
 
 const HELP_MESSAGE: &str = "\n
     Create chat group:  --create-group\n
@@ -33,14 +37,14 @@ impl GroupBook {
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct Group {
     name: String,
     id: String,
     password: String,
-    clients: Vec<TcpStream>
+    clients: ClientMap
 }
-
+/*
 impl Clone for Group {
     fn clone(&self) -> Self {
         let mut buffer = Vec::new();
@@ -56,27 +60,23 @@ impl Clone for Group {
         }
     }
 }
-
+*/
 impl Group {
     pub fn new(password: String, group_book: &GroupBook, name: String) -> Self {
         Group {
             name,
             id: Group::generate_random_seed(group_book),
             password,
-            clients: Vec::new(),
+            clients: ClientMap::new(Mutex::new(HashMap::new())),
         }
     }
 
     pub fn add_client(&mut self, client: TcpStream) {
-        self.clients.push(client);
+        self.clients.lock().unwrap().insert(self.clients.lock().unwrap().len(), Arc::new(Mutex::new(client.try_clone().unwrap())));
     }
 
-    pub fn get_clients(&mut self) -> Vec<TcpStream> {
-        self.clients
-            .iter()
-            .map(|stream| stream.try_clone())
-            .chain(Vec::new())
-            .collect()
+    pub fn get_clients(&mut self)  {
+
     }
 
     pub fn get_id(&self) -> String {
