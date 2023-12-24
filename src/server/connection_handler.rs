@@ -4,6 +4,7 @@ use std::fmt::format;
 use std::io;
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
+use std::rc::Rc;
 use std::str::{from_utf8, Utf8Error};
 use rand::Rng;
 use crate::server;
@@ -32,12 +33,28 @@ impl GroupBook {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub struct Group {
     name: String,
     id: String,
     password: String,
-    clients: RefCell<HashSet<String>>
+    clients: Vec<TcpStream>
+}
+
+impl Clone for Group {
+    fn clone(&self) -> Self {
+        let mut buffer = Vec::new();
+
+        Group {
+            name: self.name.clone(),
+            id: self.id.clone(),
+            password: self.password.clone(),
+            clients: self.clients
+                .iter()
+                .map(|stream| buffer.push(stream.try_clone()))
+                .any(),
+        }
+    }
 }
 
 impl Group {
@@ -46,16 +63,20 @@ impl Group {
             name,
             id: Group::generate_random_seed(group_book),
             password,
-            clients: RefCell::new(HashSet::new()),
+            clients: Vec::new(),
         }
     }
 
-    pub fn add_client(&mut self, client_ip: String) {
-        self.clients.borrow_mut().insert(client_ip);
+    pub fn add_client(&mut self, client: TcpStream) {
+        self.clients.push(client);
     }
 
-    pub fn get_clients(&mut self) -> HashSet<String> {
-        self.clients.get_mut().clone()
+    pub fn get_clients(&mut self) -> Vec<TcpStream> {
+        self.clients
+            .iter()
+            .map(|stream| stream.try_clone())
+            .chain(Vec::new())
+            .collect()
     }
 
     pub fn get_id(&self) -> String {
@@ -109,7 +130,7 @@ pub fn handle_waiting_connection(mut stream: TcpStream, group_book: &mut GroupBo
                     },
                     "--join-group" => {
                         stream.write("\nyou joined a group".as_bytes()).expect("TODO: panic message");
-                        buffer_group.add_client(stream.peer_addr().unwrap().to_string());
+                        buffer_group.add_client(stream.try_clone().unwrap());
                     },
                     "--show-groups" => {
                         stream.write("\nthis are all the groups!".as_bytes()).expect("TODO: panic message");
