@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::format;
-use std::io;
+use std::{io, thread};
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::rc::Rc;
@@ -22,7 +22,7 @@ const HELP_MESSAGE: &str = "\n
 
 #[derive(Clone)]
 pub struct GroupBook {
-    groups: Vec<Group>
+    pub(crate) groups: Vec<Group>
 }
 
 impl GroupBook {
@@ -42,25 +42,10 @@ pub struct Group {
     name: String,
     id: String,
     password: String,
-    clients: ClientMap
+    clients: ClientMap,
+    open: bool
 }
-/*
-impl Clone for Group {
-    fn clone(&self) -> Self {
-        let mut buffer = Vec::new();
 
-        Group {
-            name: self.name.clone(),
-            id: self.id.clone(),
-            password: self.password.clone(),
-            clients: self.clients
-                .iter()
-                .map(|stream| buffer.push(stream.try_clone()))
-                .any(),
-        }
-    }
-}
-*/
 impl Group {
     pub fn new(password: String, group_book: &GroupBook, name: String) -> Self {
         Group {
@@ -68,11 +53,14 @@ impl Group {
             id: Group::generate_random_seed(group_book),
             password,
             clients: ClientMap::new(Mutex::new(HashMap::new())),
+            open: false,
         }
     }
 
-    pub fn add_client(&mut self, client: TcpStream) {
-        self.clients.lock().unwrap().insert(self.clients.lock().unwrap().len(), Arc::new(Mutex::new(client.try_clone().unwrap())));
+    pub fn add_client(&mut self, client: &TcpStream) {
+        let mut clients = self.clients.lock().unwrap();
+        let len = clients.len();
+        clients.insert(len, Arc::new(Mutex::new(client.try_clone().unwrap())));
     }
 
     pub fn get_clients(&mut self)  {
@@ -108,45 +96,79 @@ impl Group {
         }
 
     }
+
+    pub fn change_status(&mut self) {
+        self.open = !self.open
+    }
+
+    pub fn get_status(&self) -> bool {
+        self.open
+    }
 }
 
-pub fn handle_waiting_connection(mut stream: TcpStream, group_book: &mut GroupBook) {
+pub fn handle_client(mut stream: TcpStream, group_book: &mut GroupBook) {
     let mut data = [0u8; 1200]; // using 120 byte buffer
+    let mut buffer_group = server::connection_handler::Group::new("".to_string(), &group_book, "test".to_string());
     stream.set_nonblocking(true).unwrap();
+    while match stream.read(&mut data) {
+        Ok(size) if size > 0 => {
+            let message =  from_utf8(&data[0..size-2]).unwrap();
+            match message {
+                "--help" => {
+                    stream.write(HELP_MESSAGE.as_bytes()).expect("TODO: panic message");
+                    true
+                },
+                "--create-group" => {
+                    stream.write("\nyou created a group".as_bytes()).expect("TODO: panic message");
+                    buffer_group = server::connection_handler::Group::new("".to_string(), &group_book, "test".to_string());
+                    group_book.add_group(&buffer_group);
+                    true
+                },
+                "--join-group" => {
+                    stream.write("\nyou joined a group".as_bytes()).expect("TODO: panic message");
+                    buffer_group.add_client(&stream.try_clone().unwrap());
+                    false
+                },
+                "--show-groups" => {
+                    stream.write("\nthis are all the groups!".as_bytes()).expect("TODO: panic message");
+                    for s in &group_book.groups {
+                        stream.write(format!("\n{:?}", s.name).as_bytes()).expect("TODO: panic message");
+                    }
+                    true
+                },
+                "--exit-server" => {
+                    stream.shutdown(Shutdown::Both).unwrap();
+                    false
+                },
+                _ => {
+                    true
+                }
+            }
+        },
+        Ok(_) => {
+            true
+        },
+        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+            // Do nothing on WouldBlock, just continue the loop
+            true
+        },
+        Err(e) => {
+            println!("An error occurred, terminating connection with {}", stream.peer_addr().unwrap());
+            println!("Error: {:?}", e);
+            stream.shutdown(Shutdown::Both).unwrap();
+            false
+        }
+    } {}
     loop {
+        let streams = buffer_group.clients.lock().unwrap();
         match stream.read(&mut data) {
             Ok(size) if size > 0 => {
-                let message =  from_utf8(&data[0..size-2]).unwrap();
-                let mut buffer_group = server::connection_handler::Group::new("".to_string(), &group_book, "test".to_string());
-
-                match message {
-                    "--help" => {
-                        stream.write(HELP_MESSAGE.as_bytes()).expect("TODO: panic message");
-                    },
-                    "--create-group" => {
-                        stream.write("\nyou created a group".as_bytes()).expect("TODO: panic message");
-                        buffer_group = server::connection_handler::Group::new("".to_string(), &group_book, "test".to_string());
-                        group_book.add_group(&buffer_group);
-                    },
-                    "--join-group" => {
-                        stream.write("\nyou joined a group".as_bytes()).expect("TODO: panic message");
-                        buffer_group.add_client(stream.try_clone().unwrap());
-                    },
-                    "--show-groups" => {
-                        stream.write("\nthis are all the groups!".as_bytes()).expect("TODO: panic message");
-                        for s in &group_book.groups {
-                            stream.write(format!("\n{:?}", s.name).as_bytes()).expect("TODO: panic message");
-                        }
-                    },
-                    "--exit-server" => {
-                        stream.shutdown(Shutdown::Both).unwrap();
-                    },
-                    _ => {}
+                for (_, stream) in streams.iter() {
+                    let mut locked_stream = stream.lock().unwrap();
+                    locked_stream.write(&data[0..size-2]).unwrap();
                 }
             },
-            Ok(_) => {
-
-            },
+            Ok(_) => {},
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                 // Do nothing on WouldBlock, just continue the loop
             },
@@ -154,12 +176,23 @@ pub fn handle_waiting_connection(mut stream: TcpStream, group_book: &mut GroupBo
                 println!("An error occurred, terminating connection with {}", stream.peer_addr().unwrap());
                 println!("Error: {:?}", e);
                 stream.shutdown(Shutdown::Both).unwrap();
-                break;
             }
         }
     }
 }
 
-pub fn handle_group_connection() {
-
+pub fn handle_groups(group_book: GroupBook) {
+    thread::spawn(move || {
+        loop {
+            for group in &group_book.groups {
+                if !group.open {
+                    thread::spawn(move || {
+                        loop {
+                            println!("test!");
+                        }
+                    });
+                }
+            }
+        }
+    });
 }
