@@ -9,3 +9,5 @@ authors = ["Space_Nerd"]
 [dependencies]
 winapi = { version = "0.3", features = ["winsock2", "winuser"] }
 clap = { version = "4.4.11", features = ["derive"] }
+rand = "0.8.5"
+rand_chacha = "0.3.1"

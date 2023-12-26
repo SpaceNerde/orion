@@ -1,8 +1,7 @@
 use std::net::{TcpStream};
 use std::io::{Read, Write};
 use std::{io, thread};
-use std::ops::{Index, Rem};
-use std::str::{from_utf8, from_utf8_unchecked};
+use std::str::from_utf8;
 use std::time::Duration;
 
 pub fn start_client(addr: String) {
@@ -31,7 +30,7 @@ pub fn start_client(addr: String) {
     let mut data = [0u8; 1200]; // using a 1200-byte buffer
     loop {
         match stream.read(&mut data) {
-            Ok(size) if size > 0 => unsafe {
+            Ok(size) if size > 0 => {
                 message_handler(&mut data, size);
             },
             Ok(_) => {
@@ -56,12 +55,12 @@ pub fn start_client(addr: String) {
 }
 
 fn message_handler(message: &mut [u8], size: usize) {
-    let mut vec_message = message.to_vec();
+    let vec_message = message.to_vec();
 
     if size > 0 {
-        match from_utf8(&vec_message[0..(size-2)]) {
+        match from_utf8(&vec_message[0..(size)]) {
             Ok(content) => {
-                println!("{:?}", content);
+                println!("{}", content.to_string());
             },
             Err(e) => {
                 println!("(Message Handler)Error: {:?}", e);

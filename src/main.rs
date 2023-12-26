@@ -4,7 +4,7 @@ mod commands;
 
 use commands::*;
 use clap::Parser;
-use server::server_handler;
+use server::{server_handler, connection_handler};
 use client::client_handler;
 
 fn main() {
@@ -16,7 +16,6 @@ fn main() {
         },
         Commands::StartClient(args) => {
             client_handler::start_client(format!("{}:{}", args.ip, args.port));
-        },
-        _ => {}
+        }
     }
 }
