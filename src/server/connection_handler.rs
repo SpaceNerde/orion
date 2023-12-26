@@ -1,12 +1,12 @@
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::fmt::format;
+
+use std::collections::HashMap;
+
 use std::{io, thread};
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
-use std::rc::Rc;
-use std::str::{from_utf8, Utf8Error};
-use std::sync::{Arc, Mutex, MutexGuard};
+
+use std::str::{from_utf8};
+use std::sync::{Arc, Mutex};
 use rand::Rng;
 use crate::server;
 
