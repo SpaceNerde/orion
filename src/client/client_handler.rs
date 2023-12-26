@@ -58,9 +58,9 @@ fn message_handler(message: &mut [u8], size: usize) {
     let vec_message = message.to_vec();
 
     if size > 0 {
-        match from_utf8(&vec_message[0..(size-2)]) {
+        match from_utf8(&vec_message[0..(size)]) {
             Ok(content) => {
-                println!("{:?}", content);
+                println!("{}", content.to_string());
             },
             Err(e) => {
                 println!("(Message Handler)Error: {:?}", e);

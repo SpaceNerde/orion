@@ -1,8 +1,11 @@
 use std::{io, thread};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
+use crate::server;
 
-fn handle_client(mut stream: TcpStream) {
+use crate::server::connection_handler::{handle_client, handle_groups};
+
+/*fn handle_client(mut stream: TcpStream) {
     let mut data = [0u8; 1200]; // using 120 byte buffer
     stream.set_nonblocking(true).unwrap();
     while match stream.read(&mut data) {
@@ -26,19 +29,23 @@ fn handle_client(mut stream: TcpStream) {
             false
         }
     } {}
-}
+}*/
 
 pub fn start_server(addr: String) {
+    // TODO: Add Command to create Group Books
+    let mut test_group_book = server::connection_handler::GroupBook::new();
+
     let listener = TcpListener::bind(addr).unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
+                let mut test_group_book_clone = test_group_book.clone();
                 println!("New connection: {}", stream.peer_addr().unwrap());
                 thread::spawn(move|| {
                     // connection succeeded
-                    handle_client(stream)
+                    handle_client(stream, &mut test_group_book_clone);
                 });
             }
             Err(e) => {
