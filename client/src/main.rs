@@ -12,13 +12,11 @@ fn main() -> std::io::Result<()> {
     let stream_clone = stream.try_clone().unwrap();
 
     thread::spawn(move || {
-        let stream = stream_clone;
-        
-        let mut reader = BufReader::new(&stream);
+        let mut reader = BufReader::new(&stream_clone);
         let mut buffer = String::new();
 
+
         while reader.read_line(&mut buffer).unwrap() > 0 {
-            println!("TEST");
             let message = buffer.trim_end().to_string();
             println!("{:?}", message);
             buffer.clear();

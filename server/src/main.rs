@@ -37,7 +37,7 @@ fn main() -> std::io::Result<()> {
 
 
                         while reader.read_line(&mut buffer).unwrap() > 0 {
-                            let message = buffer.trim_end().to_string();
+                            let message = buffer.to_string();
                             tx_clone.send(message).unwrap();
                             buffer.clear();
                         }
@@ -54,7 +54,7 @@ fn main() -> std::io::Result<()> {
     while let received = rx.recv() {
         let mut clients = shared_clients_thread.lock().unwrap();
         for mut client in clients.iter() {
-            client.write(received.clone().unwrap().as_bytes()).unwrap();
+            client.write(received.clone().expect("could not get received message").as_bytes()).expect("Could not write to client");
         }
     }
 
