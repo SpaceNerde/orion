@@ -5,11 +5,7 @@ use std::thread;
 
 // propper disconnect and error handling
 //
-// To do:
-//  - message gets lost
-//  - cant clone stuff
-//  - server shutsdown
-//  - weird message format?
+// Fuck it NO ERROR HANDLING ON MY WATCH!!!
 
 struct Group {}
 
