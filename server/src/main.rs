@@ -2,6 +2,18 @@ use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
+use crossterm::{
+        event::{self, KeyCode, KeyEventKind},
+        terminal::{
+                disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
+                LeaveAlternateScreen,
+            },
+        ExecutableCommand,
+};
+use ratatui::{
+        prelude::{CrosstermBackend, Stylize, Terminal},
+        widgets::Paragraph,
+};
 
 // propper disconnect and error handling
 //
