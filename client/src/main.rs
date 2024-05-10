@@ -116,13 +116,9 @@ fn main() -> std::io::Result<()> {
 
             // Main Loop Cause
             loop {
-                match rx.try_recv() {
-                    Ok(received) => {
-                        client_app.messages.push(received);
-                    }
-                    Err(e) => {}
-                };
-                
+                if let Ok(message) = rx.try_recv() {
+                    client_app.messages.push(message);
+                }
 
                 terminal.draw(|f| ui(f, &client_app))?;
 
