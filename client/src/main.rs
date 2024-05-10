@@ -10,14 +10,17 @@ use crossterm::{
     ExecutableCommand,
 };
 use ratatui::{
-    prelude::{CrosstermBackend, Stylize, Terminal},
-    widgets::{Paragraph, Borders, Block},
+    prelude::{CrosstermBackend, Stylize, Terminal, Constraint, Layout, Span, Line},
+    widgets::{Paragraph, Borders, Block, List, ListItem},
     Frame
 };
+use std::sync::mpsc;
+use std::time::Duration;
 
 struct ClientApp {
     input: String,
     char_index: usize,
+    messages: Vec<String>,
 }
 
 impl ClientApp {
@@ -25,6 +28,7 @@ impl ClientApp {
         Self {
             input: String::new(),
             char_index: 0,
+            messages: vec![]
         }
     }
 
@@ -59,7 +63,9 @@ impl ClientApp {
     }
 
     fn send_message(&mut self, stream: &mut TcpStream) {
-        stream.write(self.input.as_bytes());
+        let message = format!("{}\n",self.input);
+        stream.write_all(message.as_bytes()).expect("Could not write input to stream");
+        
         self.input = String::new();
         self.char_index = 0;
     }
@@ -70,15 +76,19 @@ fn main() -> std::io::Result<()> {
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
-
+    
     let mut client_app = ClientApp::new();
 
     match TcpStream::connect("127.0.0.1:80") {
+
         Ok(mut stream) => {
+            let (tx, rx) = mpsc::sync_channel(1);
             // message reciving thread
             let stream_clone = stream.try_clone().unwrap();
 
             thread::spawn(move || {
+                let tx_clone = tx.clone();
+
                 let mut reader = BufReader::new(&stream_clone);
                 let mut buffer = String::new();
 
@@ -86,7 +96,7 @@ fn main() -> std::io::Result<()> {
                     match reader.read_line(&mut buffer) {
                         Ok(_) => {
                             let message = buffer.trim_end().to_string();
-                            println!("{:?}", message);
+                            tx_clone.send(message).unwrap();
                             buffer.clear();
                         }
                         Err(e) if e.kind() == ErrorKind::ConnectionAborted => {
@@ -106,6 +116,14 @@ fn main() -> std::io::Result<()> {
 
             // Main Loop Cause
             loop {
+                match rx.try_recv() {
+                    Ok(received) => {
+                        client_app.messages.push(received);
+                    }
+                    Err(e) => {}
+                };
+                
+
                 terminal.draw(|f| ui(f, &client_app))?;
 
                 if let Event::Key(key) = event::read()? { 
@@ -125,7 +143,7 @@ fn main() -> std::io::Result<()> {
                                 client_app.move_cursor(1);
                             }
                             KeyCode::Esc => {
-                                return Ok(());
+                                break;
                             }
                             _ => {}
                         }
@@ -145,7 +163,24 @@ fn main() -> std::io::Result<()> {
 }
 
 fn ui(f: &mut Frame, app: &ClientApp) {
+    let layout = Layout::vertical([
+        Constraint::Min(1),
+        Constraint::Length(3),
+    ]);
+    let [message_area, input_area] = layout.areas(f.size());
+
     let input = Paragraph::new(app.input.as_str()).block(Block::bordered().title("Input"));
-    f.render_widget(input, f.size());
+    f.render_widget(input, input_area);
+
+    let messages_items: Vec<ListItem> = app
+        .messages
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let content = Line::from(Span::raw(format!("{i}: {m}")));
+            ListItem::new(content)
+        }).collect();
+    let messages_list = List::new(messages_items).block(Block::bordered().title("Messages"));
+    f.render_widget(messages_list, message_area);
 }
 

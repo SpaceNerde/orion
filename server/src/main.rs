@@ -37,8 +37,9 @@ impl Client {
     }
 
     fn send_message(&mut self, message: String) {
+        println!("{:?}",format!("{}: {}", self.username, message));
         self.stream
-            .write(format!("{}: {}", self.username, message).as_bytes())
+            .write_all(format!("{}: {}", self.username, message).as_bytes())
             .expect("Could not write to client");
     }
 }
