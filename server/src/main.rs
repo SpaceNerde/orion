@@ -38,9 +38,11 @@ impl Client {
 
     fn send_message(&mut self, message: String) {
         println!("{:?}",format!("{}: {}", self.username, message));
-        self.stream
-            .write_all(format!("{}: {}", self.username, message).as_bytes())
-            .expect("Could not write to client");
+        match self.stream.write_all(format!("{}: {}", self.username, message).as_bytes()) {
+            Ok(_) => {} // TODO
+            Err(e) if e.kind() == ErrorKind::ConnectionReset => {} // TODO
+            Err(e) => {} // TODO
+        }
     }
 }
 
@@ -104,7 +106,7 @@ fn main() -> std::io::Result<()> {
                     });
                 }
                 Err(e) => {
-                    panic!("ERROR: {:?}", e);
+                    
                 }
             }
         }
