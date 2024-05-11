@@ -2,6 +2,18 @@ use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
+use crossterm::{
+        event::{self, KeyCode, KeyEventKind},
+        terminal::{
+                disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
+                LeaveAlternateScreen,
+            },
+        ExecutableCommand,
+};
+use ratatui::{
+        prelude::{CrosstermBackend, Stylize, Terminal},
+        widgets::Paragraph,
+};
 
 // propper disconnect and error handling
 //
@@ -25,8 +37,9 @@ impl Client {
     }
 
     fn send_message(&mut self, message: String) {
+        println!("{:?}",format!("{}: {}", self.username, message));
         self.stream
-            .write(format!("{}: {}", self.username, message).as_bytes())
+            .write_all(format!("{}: {}", self.username, message).as_bytes())
             .expect("Could not write to client");
     }
 }
