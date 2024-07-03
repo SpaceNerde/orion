@@ -54,6 +54,11 @@ impl ClientApp {
         self.move_cursor(1);
     }
 
+    fn remove_char(&mut self) {
+        self.input.pop();
+        self.move_cursor(-1)
+    }
+
     fn byte_index(&mut self) -> usize {
         self.input
             .char_indices()
@@ -130,7 +135,7 @@ fn main() -> std::io::Result<()> {
                                 client_app.enter_char(to_insert);
                             }
                             KeyCode::Backspace => {
-                                // TODO
+                                client_app.remove_char();
                             }
                             KeyCode::Left => {
                                 client_app.move_cursor(-1);
