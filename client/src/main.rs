@@ -1,26 +1,46 @@
-use std::{io::{Read, Result}, net::TcpStream, str::from_utf8, vec};
+use std::{io::{Read, Result}, net::TcpStream, str::{from_utf8, Utf8Error}, vec};
 
-use crossterm::event;
 use ratatui::{widgets::{Block, Borders, Paragraph}, DefaultTerminal, Frame};
+
+#[derive(Clone, Debug)]
+struct Data {
+    buffer: Vec<u8>,
+    msg_length: usize,
+    input: String 
+}
+
+impl Data {
+    fn msg_to_string(&self) -> &str {
+        from_utf8(&self.buffer[0..self.msg_length]).expect("Could not convert buffer into string")
+    }
+}
 
 fn run(terminal: &mut DefaultTerminal) -> Result<()> {
     let mut stream = TcpStream::connect("127.0.0.1:8080").unwrap();
-    let mut buf = vec![0; 64];
     
+    let mut data = Data {
+        buffer: vec![0; 64],
+        msg_length: 0,
+        input: String::new()
+    };
+
     loop {
-        let n = stream.read(&mut buf).unwrap();
+        data.msg_length = stream.read(&mut data.buffer).unwrap();
 
         terminal.draw(|f| {
-            draw(f, buf.clone(), n);
+            draw(f, data.clone());
         }).unwrap();
     }
 }
 
-fn draw(frame: &mut Frame, buf: Vec<u8>, n: usize) {
-    let message = from_utf8(&buf[0..n]);
+fn draw(frame: &mut Frame, data: Data) {
+    frame.render_widget(
+        Paragraph::new(data.msg_to_string())
+            .block(Block::new().borders(Borders::ALL)),
+        frame.area());
 
     frame.render_widget(
-        Paragraph::new(message.unwrap())
+        Paragraph::new(data.input)
             .block(Block::new().borders(Borders::ALL)),
         frame.area());
 }
