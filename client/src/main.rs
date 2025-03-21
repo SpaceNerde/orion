@@ -13,12 +13,7 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
         terminal.draw(|f| {
             draw(f, buf.clone(), n);
         }).unwrap();
-        if matches!(event::read().unwrap(), event::Event::Key(_)) {
-            break;
-        }
     }
-
-    Ok(())
 }
 
 fn draw(frame: &mut Frame, buf: Vec<u8>, n: usize) {

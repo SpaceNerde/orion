@@ -24,15 +24,15 @@ enum Message<'client> {
 struct Client<'name> {
     stream: Arc<TcpStream>,
     username: &'name str,
-    address: SocketAddr
+    address: SocketAddr,
 }
 
 impl<'name> Client<'name> {
     fn new(stream: Arc<TcpStream>, username: &'name str, address: SocketAddr) -> Self {
-        Client { 
-            stream, 
-            username, 
-            address
+        Client {
+            stream,
+            username,
+            address,
         }
     }
 }
@@ -41,21 +41,22 @@ impl<'name> Client<'name> {
 struct Group<'name> {
     clients: HashMap<SocketAddr, Client<'name>>,
     group_name: &'name str,
-    group_id: String
+    group_id: String,
 }
 
 impl<'name> Group<'name> {
     fn new(group_name: &'name str) -> Self {
         // Creates 16 character long random string
-        let group_id: String = rng().sample_iter(Alphanumeric)
+        let group_id: String = rng()
+            .sample_iter(Alphanumeric)
             .take(16)
             .map(char::from)
             .collect();
 
-        Group { 
-            clients: HashMap::new(), 
-            group_name, 
-            group_id 
+        Group {
+            clients: HashMap::new(),
+            group_name,
+            group_id,
         }
     }
 
@@ -67,7 +68,7 @@ impl<'name> Group<'name> {
         self.clients.remove(&client.address);
     }
 
-    fn send(&self, msg: Vec<u8>, sender: Client) -> Result<()>{
+    fn send(&self, msg: Vec<u8>, sender: Client) -> Result<()> {
         for client in self.clients.clone() {
             if client.0 == sender.address {
                 continue;
@@ -79,7 +80,7 @@ impl<'name> Group<'name> {
         }
 
         Ok(())
-    }   
+    }
 }
 
 fn handle_server(rx: Receiver<Message>) -> Result<()> {
@@ -96,7 +97,8 @@ fn handle_server(rx: Receiver<Message>) -> Result<()> {
                 // add new connection to list of connected clients
                 group.insert(client.clone());
 
-                client.stream
+                client
+                    .stream
                     .as_ref()
                     .write_all(b"\nWelcome to Orion!\n")
                     .expect("BROKEN");
@@ -104,10 +106,7 @@ fn handle_server(rx: Receiver<Message>) -> Result<()> {
             Message::Disconnect(client) => {
                 group.remove(client.clone());
 
-                println!(
-                    "INFO: Client disconnected: {:?}",
-                    client.address 
-                );
+                println!("INFO: Client disconnected: {:?}", client.address);
             }
             Message::New { sender, msg } => {
                 // send message to all connected clients
