@@ -1,122 +1,194 @@
-use std::io::{BufRead, BufReader, ErrorKind, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::{mpsc, Arc, Mutex};
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpStream};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
 use std::thread;
-use crossterm::{
-        event::{self, KeyCode, KeyEventKind},
-        terminal::{
-                disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
-                LeaveAlternateScreen,
-            },
-        ExecutableCommand,
-};
-use ratatui::{
-        prelude::{CrosstermBackend, Stylize, Terminal},
-        widgets::Paragraph,
-};
+use std::{net::TcpListener, result};
 
-// propper disconnect and error handling
-//
-// Fuck it NO ERROR HANDLING ON MY WATCH!!!
+use rand::distr::Alphanumeric;
+use rand::{rng, Rng};
 
-struct Group {}
+type Result<T> = result::Result<T, ()>;
 
-struct Client {
-    stream: TcpStream,
-    username: String,
+enum Message<'client> {
+    Connect(Client<'client>),
+    Disconnect(Client<'client>),
+    New {
+        sender: Client<'client>,
+        msg: Vec<u8>,
+    },
 }
 
-impl Client {
-    fn new(stream: TcpStream, username: String) -> Self {
-        Self { stream, username }
-    }
+#[derive(Debug, Clone)]
+struct Client<'name> {
+    stream: Arc<TcpStream>,
+    username: &'name str,
+    address: SocketAddr,
+}
 
-    // To lazy to work on a state system so i just straight up drop the stream to disconnect :|
-    fn disconnect(self) {
-        drop(self);
-    }
-
-    fn send_message(&mut self, message: String) {
-        println!("{:?}",format!("{}: {}", self.username, message));
-        match self.stream.write_all(format!("{}: {}", self.username, message).as_bytes()) {
-            Ok(_) => {} // TODO
-            Err(e) if e.kind() == ErrorKind::ConnectionReset => {} // TODO
-            Err(e) => {} // TODO
+impl<'name> Client<'name> {
+    fn new(stream: Arc<TcpStream>, username: &'name str, address: SocketAddr) -> Self {
+        Client {
+            stream,
+            username,
+            address,
         }
     }
 }
 
-fn main() -> std::io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:80")?;
+#[derive(Clone, Debug)]
+struct Group<'name> {
+    clients: HashMap<SocketAddr, Client<'name>>,
+    group_name: &'name str,
+    group_id: String,
+}
 
-    // Create list of all connected clients
-    // TODO: Make Fucking Groups and then make this code a litte more clean
-    let clients: Vec<Client> = vec![];
-    let shared_clients = Arc::new(Mutex::new(clients));
-    let shared_clients_thread = Arc::clone(&shared_clients);
+impl<'name> Group<'name> {
+    fn new(group_name: &'name str) -> Self {
+        // Creates 16 character long random string
+        let group_id: String = rng()
+            .sample_iter(Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
 
-    let (tx, rx) = mpsc::channel();
+        Group {
+            clients: HashMap::new(),
+            group_name,
+            group_id,
+        }
+    }
 
-    thread::spawn(move || {
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    let stream_clone = stream.try_clone();
+    fn insert(&mut self, client: Client<'name>) {
+        self.clients.insert(client.address, client);
+    }
 
-                    // Add client to List of clients
-                    // TODO: Change this shit into clean groups later aswell!!
-                    let mut clients = shared_clients.lock().unwrap();
+    fn remove(&mut self, client: Client<'name>) {
+        self.clients.remove(&client.address);
+    }
 
-                    // create new client
-                    let client = Client::new(
-                        stream_clone.unwrap(),
-                        "TEST USER".to_string(), // TODO
-                    );
-
-                    clients.push(client);
-
-                    let tx_clone = tx.clone();
-
-                    thread::spawn(move || {
-                        println!("{:?} just connected", stream.peer_addr());
-
-                        let mut reader = BufReader::new(&stream);
-                        let mut buffer = String::new();
-
-                        loop {
-                            match reader.read_line(&mut buffer) {
-                                Ok(_) => {
-                                    let message = buffer.to_string();
-                                    tx_clone.send(message).unwrap();
-                                    buffer.clear();
-                                }
-                                Err(e) if e.kind() == ErrorKind::ConnectionAborted => {
-                                    println!("INFO: Client just disconnected.");
-                                    break;
-                                }
-                                Err(e) if e.kind() == ErrorKind::ConnectionReset => {
-                                    println!("INFO: Client reset connection.");
-                                    break;
-                                }
-                                Err(e) => {
-                                    panic!("ERROR: {:?}", e);
-                                }
-                            }
-                        }
-                    });
-                }
-                Err(e) => {
-                    
-                }
+    fn send(&self, msg: Vec<u8>, sender: Client) -> Result<()> {
+        for client in self.clients.clone() {
+            if client.0 == sender.address {
+                continue;
             }
+
+            client.1.stream.as_ref().write(&msg).map_err(|e| {
+                eprintln!("ERROR: Could not write message to stream: {e}");
+            })?;
         }
-    });
+
+        Ok(())
+    }
+}
+
+fn handle_server(rx: Receiver<Message>) -> Result<()> {
+    // all clients connected to server
+    let mut group = Group::new("sample");
 
     loop {
-        let received = rx.recv().unwrap();
-        let mut clients = shared_clients_thread.lock().unwrap();
-        for client in clients.iter_mut() {
-            client.send_message(received.clone());
+        let msg = rx.recv().map_err(|e| {
+            eprintln!("ERROR: Could not receive message: {e}");
+        })?;
+
+        match msg {
+            Message::Connect(client) => {
+                // add new connection to list of connected clients
+                group.insert(client.clone());
+
+                client
+                    .stream
+                    .as_ref()
+                    .write_all(b"\nWelcome to Orion!\n")
+                    .expect("BROKEN");
+            }
+            Message::Disconnect(client) => {
+                group.remove(client.clone());
+
+                println!("INFO: Client disconnected: {:?}", client.address);
+            }
+            Message::New { sender, msg } => {
+                // send message to all connected clients
+                group.send(msg, sender).expect("FIXME");
+            }
         }
     }
+}
+
+fn handle_connection(stream: Arc<TcpStream>, tx: Sender<Message>) -> Result<()> {
+    // TODO: Connection message to server must contain token and username
+
+    // create new client instance
+    let address = stream.as_ref().peer_addr().map_err(|e| {
+        eprintln!("ERROR: Could not get address from stream: {e}");
+    })?;
+
+    let client = Client::new(stream.clone(), "john", address);
+
+    tx.send(Message::Connect(client.clone())).map_err(|e| {
+        eprintln!("ERROR: Client could not Connect to server: {e}");
+    })?;
+
+    // hold connection to server open
+    let mut buf = vec![0; 64];
+    loop {
+        let n = stream.as_ref().read(&mut buf).map_err(|e| {
+            eprintln!("ERROR: Could not read from stream: {e}");
+            let _ = tx.send(Message::Disconnect(client.clone()));
+        })?;
+
+        tx.send(Message::New {
+            sender: client.clone(),
+            msg: buf[0..n].to_vec(),
+        })
+        .map_err(|e| {
+            eprintln!("ERROR: Could not send message over channel: {e}");
+        })?;
+
+        // close connection if connection was closed by client
+        if n == 0 {
+            let _ = tx.send(Message::Disconnect(client.clone()));
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    println!("INFO: Starting Server");
+
+    let addr = "127.0.0.1:8080";
+
+    let listener = TcpListener::bind(addr).map_err(|e| {
+        eprintln!("ERROR: Could not bind {addr} to server: {e}");
+    })?;
+
+    println!("INFO: Server listening on {addr}");
+
+    let (tx, rx) = channel::<Message>();
+
+    // running server handler
+    thread::spawn(|| {
+        let _ = handle_server(rx);
+    });
+
+    // accept all incoming connections
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                let tx = tx.clone();
+                let stream = Arc::new(stream);
+                thread::spawn(|| {
+                    let _ = handle_connection(stream, tx);
+                });
+            }
+            Err(e) => {
+                eprintln!("ERROR: Could not accept connection: {e}");
+            }
+        }
+    }
+
+    Ok(())
 }

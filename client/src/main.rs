@@ -1,21 +1,18 @@
-use std::io::{stdin, BufRead, BufReader, ErrorKind, Write, stdout};
-use std::net::TcpStream;
-use std::thread;
 use crossterm::{
-    event::{self, KeyCode, KeyEventKind, Event},
-    terminal::{
-        disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
-        LeaveAlternateScreen,
-    },
+    event::{self, Event, KeyCode, KeyEventKind},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 use ratatui::{
-    prelude::{CrosstermBackend, Stylize, Terminal, Constraint, Layout, Span, Line},
-    widgets::{Paragraph, Borders, Block, List, ListItem},
-    Frame
+    prelude::{Constraint, CrosstermBackend, Layout, Line, Span, Terminal},
+    widgets::{Block, List, ListItem, Paragraph},
+    Frame,
 };
+
+use std::io::{stdout, BufRead, BufReader, ErrorKind, Write};
+use std::net::TcpStream;
 use std::sync::mpsc;
-use std::time::Duration;
+use std::thread;
 
 struct ClientApp {
     input: String,
@@ -28,7 +25,7 @@ impl ClientApp {
         Self {
             input: String::new(),
             char_index: 0,
-            messages: vec![]
+            messages: vec![],
         }
     }
 
@@ -37,7 +34,7 @@ impl ClientApp {
             -1 => {
                 let cursor_move = self.char_index.saturating_sub(1);
                 self.char_index = cursor_move.clamp(0, self.input.chars().count());
-            },
+            }
             1 => {
                 let cursor_move = self.char_index.saturating_add(1);
                 self.char_index = cursor_move.clamp(0, self.input.chars().count());
@@ -68,12 +65,34 @@ impl ClientApp {
     }
 
     fn send_message(&mut self, stream: &mut TcpStream) {
-        let message = format!("{}\n",self.input);
-        stream.write_all(message.as_bytes()).expect("Could not write input to stream");
-        
+        let message = format!("{}\n", self.input);
+        stream
+            .write_all(message.as_bytes())
+            .expect("Could not write input to stream");
+
         self.input = String::new();
         self.char_index = 0;
     }
+}
+
+fn ui(f: &mut Frame, app: &ClientApp) {
+    let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]);
+    let [message_area, input_area] = layout.areas(f.size());
+
+    let input = Paragraph::new(app.input.as_str()).block(Block::bordered().title("Input"));
+    f.render_widget(input, input_area);
+
+    let messages_items: Vec<ListItem> = app
+        .messages
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let content = Line::from(Span::raw(format!("{i}: {m}")));
+            ListItem::new(content)
+        })
+        .collect();
+    let messages_list = List::new(messages_items).block(Block::bordered().title("Messages"));
+    f.render_widget(messages_list, message_area);
 }
 
 fn main() -> std::io::Result<()> {
@@ -81,11 +100,10 @@ fn main() -> std::io::Result<()> {
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
-    
+
     let mut client_app = ClientApp::new();
 
-    match TcpStream::connect("127.0.0.1:80") {
-
+    match TcpStream::connect("127.0.0.1:8080") {
         Ok(mut stream) => {
             let (tx, rx) = mpsc::sync_channel(1);
             // message reciving thread
@@ -127,7 +145,7 @@ fn main() -> std::io::Result<()> {
 
                 terminal.draw(|f| ui(f, &client_app))?;
 
-                if let Event::Key(key) = event::read()? { 
+                if let Event::Key(key) = event::read()? {
                     if key.kind == KeyEventKind::Press {
                         match key.code {
                             KeyCode::Enter => client_app.send_message(&mut stream),
@@ -156,32 +174,9 @@ fn main() -> std::io::Result<()> {
             // You dont always have to panic if something goes wrong ;)
             println!("ERROR: Could not connect to server!");
         }
-    }   
+    }
 
     stdout().execute(LeaveAlternateScreen)?;
     disable_raw_mode()?;
     Ok(())
 }
-
-fn ui(f: &mut Frame, app: &ClientApp) {
-    let layout = Layout::vertical([
-        Constraint::Min(1),
-        Constraint::Length(3),
-    ]);
-    let [message_area, input_area] = layout.areas(f.size());
-
-    let input = Paragraph::new(app.input.as_str()).block(Block::bordered().title("Input"));
-    f.render_widget(input, input_area);
-
-    let messages_items: Vec<ListItem> = app
-        .messages
-        .iter()
-        .enumerate()
-        .map(|(i, m)| {
-            let content = Line::from(Span::raw(format!("{i}: {m}")));
-            ListItem::new(content)
-        }).collect();
-    let messages_list = List::new(messages_items).block(Block::bordered().title("Messages"));
-    f.render_widget(messages_list, message_area);
-}
-

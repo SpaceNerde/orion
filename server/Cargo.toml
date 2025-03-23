@@ -4,5 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-crossterm = "0.27.0"
-ratatui = "0.26.2"
+rand = "0.9.0"
