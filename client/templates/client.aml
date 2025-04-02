@@ -1,0 +1,10 @@
+vstack
+    expand [factor: 9]
+        border
+            expand
+                vstack
+                    overflow [axis: "vertical"]
+                        @messages
+    expand [factor: 1]
+        border
+            expand
