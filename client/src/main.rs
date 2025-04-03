@@ -1,4 +1,12 @@
-use anathema::{component::{Component, MouseState}, default_widgets::Overflow, prelude::{Document, TuiBackend}, runtime::{self, Runtime}, state::{List, State, Value} };
+use std::{io::Read, net::TcpStream, result, str::from_utf8, sync::{mpsc::{Receiver, channel}, Arc}, thread::{self, sleep}, time::Duration};
+
+use anathema::{component::{Component, MouseState}, default_widgets::Overflow, prelude::{Document, TuiBackend}, runtime::{self, Runtime}, state::{List, State, Value}};
+
+// how to fucking implement message reciving now :,)
+// Put the TcpStream into message and on tick read from the stream and put that shit into the Value
+// List ez pz
+
+type Result<T> = result::Result<T, ()>;
 
 #[derive(Default, Debug)]
 struct Client {}
@@ -35,8 +43,20 @@ struct MessagesState {
     messages: Value<List<String>>,
 }
 
-#[derive(Default, Debug)]
-struct Messages {}
+#[derive(Debug)]
+struct Messages {
+    ts: Duration,
+    stream: TcpStream,
+}
+
+impl Messages {
+    fn new(stream: TcpStream) -> Self {
+        Self {
+            ts: Duration::new(0, 0),
+            stream
+        }
+    }
+}
 
 impl Component for Messages {
     type State = MessagesState;
@@ -49,11 +69,34 @@ impl Component for Messages {
             context: anathema::prelude::Context<'_, Self::State>,
             dt: std::time::Duration,
         ) {
-        todo!() // Work on rev of Messages from server and the sending of own messages
+        self.ts = self.ts.saturating_sub(dt);
+
+        if self.ts != Duration::ZERO {
+            return;
+        }
+
+        let mut buffer = vec![0; 64];
+        let n = self.stream.read(&mut buffer).expect("Something went bad when reading to buffer");
+
+        state.messages.push(Value::new(from_utf8(&mut buffer[0..n]).expect("Could not turn into utf").to_string()));
+
+        self.ts = Duration::from_secs(1);
     }
 }
 
-fn main() {
+
+struct Message {
+    msg: Value<String>,
+}
+
+fn main() -> Result<()>{
+    // TODO create a proper App flow and dont hardcode all that shit
+    
+    let mut stream = TcpStream::connect("127.0.0.1:8080").map_err(|e| {
+        // dont panic but implement proper error handling!
+        panic!("ERROR: Could not connect to server!")
+    }).unwrap();
+
     let doc = Document::new("@client");
     let backend = TuiBackend::builder()
         .enable_raw_mode()
@@ -74,9 +117,11 @@ fn main() {
     runtime.register_component(
         "messages",
         "templates/messages.aml",
-        Messages::default(),
+        Messages::new(stream),
         MessagesState::default()
     ).unwrap();
 
     runtime.finish().unwrap().run();
+
+    Ok(())
 }
