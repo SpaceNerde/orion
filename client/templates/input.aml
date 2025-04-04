@@ -1,0 +1,2 @@
+for value in input_text 
+    text value

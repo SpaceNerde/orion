@@ -8,3 +8,6 @@ vstack
     expand [factor: 1]
         border
             expand
+                vstack
+                    overflow [axis: "vertical"]
+                        @input
