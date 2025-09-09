@@ -105,28 +105,21 @@ impl Component for Input {
     type Message = ();
 
     fn on_key(
-            &mut self,
-            key: anathema::component::KeyEvent,
-            state: &mut Self::State,
-            mut elements: anathema::widgets::Elements<'_, '_>,
-            mut context: anathema::prelude::Context<'_, Self::State>,
-        ) {
-        if !(matches!(key.state, KeyState::Press)) {
-            return;
-        }
-        
-        // Lib is broken yeah wait for fix :,)
-
+        &mut self,
+        key: anathema::component::KeyEvent,
+        state: &mut Self::State,
+        mut elements: anathema::widgets::Elements<'_, '_>,
+        mut context: anathema::prelude::Context<'_, Self::State>,
+    ) {
         match key.code {
             KeyCode::Char(c) => {
                 self.input_buffer.push(c as u8);
                 state.input_text.push_back(Value::new(c));
             },
-            // fix for if messages does not get send
             KeyCode::Enter => {
                 drop(self.stream.as_ref().write(&self.input_buffer));
             },
-            _ => ()
+            _ => (),
         }
     }
 }
@@ -142,6 +135,7 @@ fn main() -> Result<()>{
 
     let doc = Document::new("@client");
     let backend = TuiBackend::builder()
+        .enable_alt_screen()
         .enable_raw_mode()
         .enable_mouse()
         .finish()
@@ -157,18 +151,19 @@ fn main() -> Result<()>{
     ).unwrap();
     
     runtime.register_component(
+        "input", 
+        "templates/input.aml", 
+        Input::new(Arc::new(input_stream)), 
+        InputState::default()
+    ).unwrap();
+
+    runtime.register_component(
         "messages",
         "templates/messages.aml",
         Messages::new(Arc::new(stream)),
         MessagesState::default()
     ).unwrap();
 
-    runtime.register_component(
-        "input", 
-        "templates/input.aml", 
-        Input::new(Arc::new(input_stream)), 
-        InputState::default()
-    ).unwrap();
 
     runtime.finish().unwrap().run();
 
